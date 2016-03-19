@@ -9,9 +9,15 @@ SPEAK_EVENT = "speak_event"
 UNLOAD_EVENT = "unload_event"
 
 
+_event_handlers = {}
+
+
 def event_decorator(event):
     def decorator(func):
         dispatcher.connect(func, signal=event)
+        if event not in _event_handlers:
+            _event_handlers[event] = []
+        _event_handlers[event].append(func)
         return func
     return decorator
 
@@ -40,3 +46,16 @@ def load_plugins(dir_path):
         lambda plugin: load_plugin(plugin),
         (os.path.join(dir_path, module_path) for module_path in os.listdir(dir_path))  # noqa
     )
+    dispatcher.send(signal=LOAD_EVENT)
+
+
+def unload_all():
+    dispatcher.send(UNLOAD_EVENT)
+
+    # note, a copy of the _event_handlers[event] list is made here with the [:]
+    # syntax as we are going to be removing event handlers from the list and
+    # we can't do this while iterating over the same list.
+    for event, handlers in _event_handlers.iteritems():
+        for handler in handlers[:]:
+            dispatcher.disconnect(handler, signal=event)
+            _event_handlers[event].remove(handler)
